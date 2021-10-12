@@ -1,0 +1,2 @@
+pyproject.toml filter=statnett_artifactory
+poetry.lock filter=statnett_artifactory
