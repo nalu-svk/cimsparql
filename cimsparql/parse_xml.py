@@ -53,7 +53,7 @@ class CimXmlBase:
     @staticmethod
     def _sv_tap_step_data_adder(node: _Element, nsmap: Dict[str, str]):
         return {
-            "position": int(node.find("cim:SvTapStep.position", nsmap).text),
+            "position": int(float(node.find("cim:SvTapStep.position", nsmap).text)),
             "mrid": attrib(node.find("cim:SvTapStep.TapChanger", nsmap), "resource", nsmap["rdf"]),
         }
 
@@ -267,6 +267,17 @@ class CimXmlBase:
         if ns is None:
             ns = "cim"
         ns = "md" if profile.endswith("FullModel") else ns
+        data = [self._adder(profile)(node, self.nsmap) for node in self.findall(f"{ns}:{profile}")]
+        return pd.DataFrame([item for item in data if item is not None]).drop_duplicates()
+
+    def parse_ssh_svk(self, profile: str) -> pd.DataFrame:
+        """Parse SSH xml str specific for Svk
+
+        Args:
+            profile: What data to extract. Can be one of:
+                     'ApparentPowerLimit'|'CurrentLimit'|'RateTemperature'
+        """
+        ns = "svk"
         data = [self._adder(profile)(node, self.nsmap) for node in self.findall(f"{ns}:{profile}")]
         return pd.DataFrame([item for item in data if item is not None]).drop_duplicates()
 

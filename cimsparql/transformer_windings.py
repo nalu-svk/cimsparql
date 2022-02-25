@@ -1,12 +1,14 @@
+from functools import reduce
 from itertools import chain
-from typing import Iterable, List, Tuple, Union
+from operator import iconcat
+from typing import Dict, Iterable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
 import cimsparql.query_support as sup
 from cimsparql.cim import EQUIP_CONTAINER, ID_OBJ, TR_WINDING
-from cimsparql.constants import con_mrid_str, ratings
+from cimsparql.constants import con_mrid_str, ratings, sequence_numbers
 
 
 def end_number(nr: int, lock_end_number: bool) -> List[str]:
@@ -16,7 +18,7 @@ def end_number(nr: int, lock_end_number: bool) -> List[str]:
         nr: Lock to this end number
         lock_end_number: return empty list if false
     """
-    return [f"?w_mrid_{nr} cim:TransformerEnd.endNumber {nr} "] if lock_end_number else []
+    return [f"?w_mrid_{nr} cim:TransformerEnd.endNumber '{nr}' "] if lock_end_number else []
 
 
 def terminal(mrid: str, nr: int, lock_end_number: bool = True) -> List[str]:
@@ -63,6 +65,24 @@ def _market(variables: List[str], where_list: List[str], with_market: bool) -> N
         )
 
 
+def _market_sv(variables: List[str], where_list: List[str], with_market: bool) -> None:
+    if with_market:
+        variables.extend(["?bidzone_1", "?bidzone_2"])
+        where_list.extend(
+            [
+                "?Substation cim:Substation.Region ?mdp",
+                sup.group_query(
+                    [
+                        "?mdp cim:IdentifiedObject.name ?bidzone",
+                        "bind(?bidzone as ?bidzone_1)",
+                        "bind(?bidzone as ?bidzone_2)",
+                    ],
+                    command="OPTIONAL",
+                ),
+            ]
+        )
+
+
 def transformer_common(
     winding_count: int,
     mrid: str,
@@ -74,6 +94,7 @@ def transformer_common(
     region: Union[str, List[str]],
     sub_region: bool,
     rates: Iterable[str],
+    end_count: int,
     network_analysis: bool,
 ) -> None:
     variables.extend([name, mrid, "?mrid", *sup.to_variables(impedance), "?un"])
@@ -90,14 +111,15 @@ def transformer_common(
     if with_market or region is not None:
         where_list.append(f"{mrid} {EQUIP_CONTAINER} ?Substation")
         where_list.extend(sup.region_query(region, sub_region, "Substation", "?subgeoreg"))
-        _market(variables, where_list, with_market)
+        _market_sv(variables, where_list, with_market)
 
     if network_analysis is not None:
         where_list.append(f"{mrid} SN:Equipment.networkAnalysisEnable {network_analysis}")
 
     if rates:
-        where_rate = ["?oplimitset cim:OperationalLimitSet.Terminal ?t_mrid_1"]
-        for rate in rates:
-            variables.append(f"?rate{rate}")
-            where_rate.extend(sup.operational_limit(mrid, rate, "oplimitset"))
-        where_list.append(sup.group_query(where_rate, command="OPTIONAL"))
+        for nr in list(range(1, end_count + 1)):
+            variables.extend([f"?rate{rate}_t{nr}" for rate in rates])
+            where_rate: List[str] = reduce(
+                iconcat, [sup.operational_limit_sv_transf(rate, end_count=nr) for rate in rates], []
+            )
+            where_list.append(sup.group_query(where_rate, command="OPTIONAL"))
