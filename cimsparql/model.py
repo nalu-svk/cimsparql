@@ -111,7 +111,7 @@ class CimModel(Model):
 
     @property
     def date_version(self) -> datetime:
-        """Activation date for this repository"""
+        """Activation date for this repository, SN only"""
         if self._date_version:
             return self._date_version
         repository_date = self.get_table_and_convert(queries.version_date())

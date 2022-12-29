@@ -159,15 +159,19 @@ def full_model() -> str:
             [
                 sup.rdf_type_tripler("", "md:FullModel"),
                 "md:Model.profile ?profile",
-                "md:Model.scenarioTime ?time",
                 "md:Model.description ?description",
                 "md:Model.version ?version",
                 "md:Model.created ?created",
-                "md:Model.DependentOn ?dependon",
             ],
         ),
-        "?dependon rdf:type md:FullModel",
     ]
+
+    add_model_depon = common_subject("?model", [sup.rdf_type_tripler("", "md:FullModel"),
+                                                "md:Model.DependentOn ?dependon"])
+    where_list.append(f"optional {{{add_model_depon}}} ")
+    add_model_time = common_subject("?model", [sup.rdf_type_tripler("", "md:FullModel"),
+                                                "md:Model.scenarioTime ?time"])
+    where_list.append(f"optional {{{add_model_time}}} ")
     return sup.combine_statements(sup.select_statement(variables), sup.group_query(where_list))
 
 
